@@ -1,8 +1,16 @@
-﻿#include <iostream>
+#include <iostream>
 #include <vector>
 #include <algorithm>
 #include <limits>
 #include <chrono>
+#include <set>
+#include <random>
+#include <ctime>
+#include <climits>
+#include <cstdlib>
+#include <numeric> 
+#include <iomanip>
+#include <string>
 
 using namespace std;
 
@@ -171,39 +179,141 @@ void printMST(const vector<Edge>& mst, const string& algorithmName) {
     cout << "Общий вес: " << calculateTotalWeight(mst) << "\n\n";
 }
 
+// Функция для вывода исходного графа
+void printOriginalGraph(const Graph& graph) {
+    cout << "=== ИСХОДНЫЙ ГРАФ ===\n";
+    cout << "Количество вершин: " << graph.V << "\n";
+    cout << "Количество рёбер: " << graph.edges.size() << "\n\n";
+    cout << "Список рёбер (u -- v, вес):\n";
 
+    // Используем set для хранения уникальных рёбер (чтобы избежать дубликатов в неориентированном графе)
+    set<pair<pair<int, int>, int>> uniqueEdges;
+
+    for (const Edge& edge : graph.edges) {
+        // Сортируем вершины, чтобы ребро (u,v) и (v,u) считались одинаковыми
+        int u = min(edge.u, edge.v);
+        int v = max(edge.u, edge.v);
+        uniqueEdges.insert({ {u, v}, edge.weight });
+    }
+
+    int edgeNumber = 1;
+    for (const auto& edge : uniqueEdges) {
+        cout << edgeNumber << ". " << edge.first.first << " -- "
+            << edge.first.second << " (вес: " << edge.second << ")\n";
+        edgeNumber++;
+    }
+}
+
+// Функция для генерации случайного графа
+Graph generateRandomGraph() {
+    // Инициализация генератора случайных чисел
+    static mt19937 rng(time(nullptr));
+
+    // Параметры генерации (можно менять)
+    int minVertices = 10;
+    int maxVertices = 100;
+    int minEdgesPerVertex = 1; // Минимальное количество рёбер на вершину
+    int maxEdgesPerVertex = 4; // Максимальное количество рёбер на вершину
+    int minWeight = 1;
+    int maxWeight = 100;
+
+    // Генерация случайного количества вершин
+    uniform_int_distribution<int> vertexDist(minVertices, maxVertices);
+    int V = vertexDist(rng);
+
+    Graph graph(V);
+
+    // Генерация рёбер
+    uniform_int_distribution<int> edgeDist(minEdgesPerVertex, maxEdgesPerVertex);
+    uniform_int_distribution<int> weightDist(minWeight, maxWeight);
+    uniform_int_distribution<int> vertexChoice(0, V - 1);
+
+    // Множество для отслеживания уже добавленных рёбер
+    set<pair<int, int>> addedEdges;
+
+    // Генерация рёбер для каждой вершины
+    for (int u = 0; u < V; u++) {
+        // Случайное количество рёбер для текущей вершины
+        int edgesForCurrentVertex = edgeDist(rng);
+
+        for (int i = 0; i < edgesForCurrentVertex; i++) {
+            // Выбираем случайную вершину для соединения
+            int v = vertexChoice(rng);
+
+            // Пропускаем петли (ребра из вершины в саму себя)
+            if (u == v) continue;
+
+            // Создаем упорядоченную пару для проверки
+            pair<int, int> edgePair = (u < v) ? make_pair(u, v) : make_pair(v, u);
+
+            // Проверяем, не было ли это ребро уже добавлено
+            if (addedEdges.find(edgePair) == addedEdges.end()) {
+                int weight = weightDist(rng);
+                graph.addEdge(u, v, weight);
+                addedEdges.insert(edgePair);
+            }
+        }
+    }
+
+    return graph;
+}
 
 int main() {
     setlocale(0, "");
     // Создаём тестовый граф
-    Graph graph(6);
 
-    // Добавляем рёбра (u, v, weight)
-    graph.addEdge(0, 1, 4);
-    graph.addEdge(0, 2, 4);
-    graph.addEdge(1, 2, 2);
-    graph.addEdge(1, 0, 4);
-    graph.addEdge(2, 0, 4);
-    graph.addEdge(2, 1, 2);
-    graph.addEdge(2, 3, 3);
-    graph.addEdge(2, 5, 2);
-    graph.addEdge(2, 4, 4);
-    graph.addEdge(3, 2, 3);
-    graph.addEdge(3, 4, 3);
-    graph.addEdge(4, 2, 4);
-    graph.addEdge(4, 3, 3);
-    graph.addEdge(5, 2, 2);
-    graph.addEdge(5, 4, 3);
+    Graph graph = generateRandomGraph();
 
-    cout << "=== Сравнение алгоритмов построения MST ===\n\n";
+    cout << "Количество вершин: " << graph.V << "\n";
+    cout << "Количество рёбер: " << graph.edges.size() << "\n\n";
+
+    printOriginalGraph(graph);
+
+
+    cout << endl << "=== Сравнение алгоритмов построения MST ===\n\n";
+
+
+    vector<chrono::microseconds> durations_kruskal;
+    vector<chrono::microseconds> durations_boruvka;
 
     // Тестируем алгоритм Крускала
+    auto start = chrono::high_resolution_clock::now();
+
     vector<Edge> kruskalResult;
     kruskalResult = kruskalMST(graph);
+
+    auto end = chrono::high_resolution_clock::now();
+
+    durations_kruskal.push_back(
+        chrono::duration_cast<chrono::microseconds>(end - start)
+    );
+
     printMST(kruskalResult, "Крускала");
 
+
     // Тестируем алгоритм Борувки
+    start = chrono::high_resolution_clock::now();
+
     vector<Edge> boruvkaResult;
     boruvkaResult = boruvkaMST(graph);
+
+    end = chrono::high_resolution_clock::now();
+
+    durations_boruvka.push_back(
+        chrono::duration_cast<chrono::microseconds>(end - start)
+    );
+
     printMST(boruvkaResult, "Борувки");
+
+    // Средние значения
+    auto total_boruvka = accumulate(durations_boruvka.begin(), durations_boruvka.end(), chrono::microseconds(0));
+
+    auto total_kruskal = accumulate(durations_kruskal.begin(), durations_kruskal.end(), chrono::microseconds(0));
+
+    cout << endl << "Время алгоритма Борувки: " << total_boruvka.count() << " мкс" << endl;
+    cout << endl << "Время алгоритма Краскала: " << total_kruskal.count() << " мкс" << endl;
+        
+
+    
+
 }
